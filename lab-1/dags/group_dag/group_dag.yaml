@@ -1,0 +1,61 @@
+default:
+  owner: 'airflow'
+  depends_on_past: false
+  start_date: 2022-01-01
+  email_on_failure: false
+  email_on_retry: false
+  retries: 1
+  retry_delay_sec: 300
+
+group_dag:
+  description: 'Aggregates multiple tasks into groups for easier management'
+  schedule: '@daily'
+  max_active_runs: 1
+  catchup: false
+  tags: ['example', 'task-group', 'dag-factory']
+
+  task_groups:
+    downloads:
+      tooltip: "Download tasks"
+
+    transforms:
+      tooltip: "Transform tasks"
+
+  tasks:
+    download_a:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      bash_command: 'sleep 10'
+      task_group: downloads
+
+    download_b:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      bash_command: 'sleep 10'
+      task_group: downloads
+
+    download_c:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      bash_command: 'sleep 10'
+      task_group: downloads
+
+    transform_a:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      bash_command: 'sleep 10'
+      task_group: transforms
+      dependencies: [download_a, download_b, download_c]
+
+    transform_b:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      bash_command: 'sleep 10'
+      task_group: transforms
+      dependencies: [download_a, download_b, download_c]
+
+    transform_c:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      bash_command: 'sleep 10'
+      task_group: transforms
+      dependencies: [download_a, download_b, download_c]
+
+    check_files:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      bash_command: 'sleep 10'
+      dependencies: [transform_a, transform_b, transform_c]

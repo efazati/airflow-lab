@@ -1,0 +1,44 @@
+default:
+  owner: 'airflow'
+  depends_on_past: false
+  start_date: 2022-01-01
+  email_on_failure: false
+  email_on_retry: false
+  retries: 1
+  retry_delay_sec: 300
+
+xcom_dag:
+  description: 'Demonstrates data passing between tasks via XComs'
+  schedule: '@daily'
+  max_active_runs: 1
+  catchup: false
+  tags: ['example', 'xcom', 'dag-factory']
+
+  tasks:
+    t1:
+      operator: airflow.providers.standard.operators.python.PythonOperator
+      python_callable_name: t1_function
+      python_callable_file: /opt/airflow/dags/xcom_dag/xcom_functions.py
+
+    branch:
+      operator: airflow.providers.standard.operators.python.BranchPythonOperator
+      python_callable_name: branch_function
+      python_callable_file: /opt/airflow/dags/xcom_dag/xcom_functions.py
+      dependencies: [t1]
+
+    t2:
+      operator: airflow.providers.standard.operators.python.PythonOperator
+      python_callable_name: t2_function
+      python_callable_file: /opt/airflow/dags/xcom_dag/xcom_functions.py
+      dependencies: [branch]
+
+    t3:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      bash_command: "echo 'Alternative branch executed'"
+      dependencies: [branch]
+
+    t4:
+      operator: airflow.providers.standard.operators.bash.BashOperator
+      bash_command: "echo 'Final task executed'"
+      trigger_rule: 'none_failed_min_one_success'
+      dependencies: [t2, t3]

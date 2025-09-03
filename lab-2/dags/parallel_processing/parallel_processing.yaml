@@ -1,0 +1,45 @@
+default:
+  owner: 'airflow'
+  depends_on_past: false
+  start_date: 2025-01-01
+  email_on_failure: false
+  email_on_retry: false
+  retries: 1
+  retry_delay_sec: 300
+
+parallel_processing:
+  description: 'A DAG demonstrating parallel task execution'
+  schedule: '@hourly'
+  max_active_runs: 1
+  catchup: false
+  tags: ['parallel', 'demo', 'dag-factory']
+
+  tasks:
+    start:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Starting parallel processing workflow..."'
+
+    task_a:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Processing Task A..." && sleep 3 && echo "Task A completed!"'
+      dependencies: [start]
+
+    task_b:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Processing Task B..." && sleep 2 && echo "Task B completed!"'
+      dependencies: [start]
+
+    task_c:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Processing Task C..." && sleep 4 && echo "Task C completed!"'
+      dependencies: [start]
+
+    combine_results:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Combining results from all parallel tasks..." && echo "All tasks completed successfully!"'
+      dependencies: [task_a, task_b, task_c]
+
+    finish:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Parallel processing workflow finished!"'
+      dependencies: [combine_results]

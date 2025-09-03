@@ -1,0 +1,22 @@
+default:
+  owner: 'airflow'
+  depends_on_past: false
+  start_date: 2023-01-01
+  email_on_failure: false
+  email_on_retry: false
+  retries: 1
+  retry_delay_sec: 300
+
+consumer:
+  description: 'Processes data when a dataset change is detected'
+  # Note: Dataset scheduling needs to be handled differently in DAG Factory
+  schedule: null  # Will be dataset-triggered
+  max_active_runs: 1
+  catchup: false
+  tags: ['example', 'dataset', 'consumer', 'dag-factory']
+
+  tasks:
+    read_dataset:
+      operator: airflow.providers.standard.operators.python.PythonOperator
+      python_callable_name: read_dataset
+      python_callable_file: /opt/airflow/dags/consumer/consumer_functions.py

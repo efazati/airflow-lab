@@ -1,0 +1,3 @@
+# Minimal requirements for simple Airflow setup
+dag-factory==1.0.0
+apache-airflow-providers-postgres>=5.0.0
