@@ -1,0 +1,55 @@
+default:
+  owner: 'airflow'
+  depends_on_past: false
+  start_date: 2023-01-01
+  email_on_failure: false
+  email_on_retry: false
+  retries: 1
+  retry_delay_sec: 300
+
+user_processing:
+  description: 'Demonstrates an HTTP sensor to retrieve and process data with database connection'
+  schedule_interval: '@daily'
+  max_active_runs: 1
+  catchup: false
+  tags: ['example', 'http-sensor', 'database', 'dag-factory']
+
+  tasks:
+    create_table:
+      operator: airflow.providers.postgres.operators.postgres.PostgresOperator
+      postgres_conn_id: 'postgres'
+      sql: |
+        CREATE TABLE IF NOT EXISTS users (
+            firstname TEXT NOT NULL,
+            lastname TEXT NOT NULL,
+            country TEXT NOT NULL,
+            username TEXT NOT NULL,
+            password TEXT NOT NULL,
+            email TEXT NOT NULL
+        );
+
+    is_api_available:
+      operator: airflow.providers.http.sensors.http.HttpSensor
+      http_conn_id: 'user_api'
+      endpoint: 'api/'
+      dependencies: [create_table]
+
+    extract_user:
+      operator: airflow.providers.http.operators.http.SimpleHttpOperator
+      http_conn_id: 'user_api'
+      endpoint: 'api/'
+      method: 'GET'
+      log_response: true
+      dependencies: [is_api_available]
+
+    process_user:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: process_user
+      python_callable_file: /opt/airflow/dags/user_process/user_functions.py
+      dependencies: [extract_user]
+
+    store_user:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: store_user
+      python_callable_file: /opt/airflow/dags/user_process/user_functions.py
+      dependencies: [process_user]

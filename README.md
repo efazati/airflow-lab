@@ -8,6 +8,14 @@ Start the Airflow environment with Docker Compose:
     docker compose up -d  # Access Airflow at localhost:8080 (default user: airflow, password: airflow)
     ```
 
+## What's New in This Version
+
+- **Upgraded to Apache Airflow 3.0.6**: Latest stable release with improved performance and new features
+- **DAG Factory Integration**: All DAGs converted to use YAML-based declarative configuration
+- **Organized Structure**: Each DAG now has its own folder with consistent naming (`dag_name/dag_name.yaml` + `dag_name/dag_name.py`)
+- **Separation of Concerns**: Custom Python functions are in dedicated modules
+- **Environment Configuration**: Proper `.env` file setup for user permissions
+
 ![Airflow Dashboard](https://github.com/user-attachments/assets/6c544f96-1fd1-441e-8dba-452f2aecadfa)
 
 ## Monitoring with Flower
@@ -20,15 +28,35 @@ docker compose --profile flower up -d  # Access Flower at localhost:5555
 
 ## DAGs Overview
 
-| Python File    | Description                                      | Notes                                                                |
+This project now uses **DAG Factory** with **Apache Airflow 3.0.6** to create DAGs declaratively from YAML configuration files. Each DAG is organized in its own folder with the structure: `dag_name/dag_name.yaml` and `dag_name/dag_name.py`.
+
+### YAML-Based DAGs (using DAG Factory)
+
+| Folder         | Description                                      | Files                                                                |
 | -------------- | ------------------------------------------------ | -------------------------------------------------------------------- |
-| `parallel_dag` | A simple DAG that runs tasks in parallel         |                                                                      |
-| `user_process` | Demonstrates an HTTP sensor to retrieve and process data | Includes a database connection configured via the Airflow UI         |
-| `producer`     | Demonstrates dataset changes                     | Works in conjunction with the `consumer` DAG                         |
-| `consumer`     | Processes data when a dataset change is detected | Pairs with the `producer` DAG                                        |
-| `group_dag`    | Aggregates multiple tasks into a single group for easier management | Custom functions are located in the `group` directory               |
-| `xcom_dag`     | Demonstrates data passing between tasks via XComs | Uses custom functions with parameters `ti` and returns task IDs to trigger the next task |
-| `elastic_dag`  | Demonstrates the use of a custom plugin in a DAG | Requires a connection setup in the Airflow UI; custom plugin functions are located in the `plugins` directory |
+| `parallel_dag/` | A simple DAG that runs tasks in parallel         | `parallel_dag.yaml`, `parallel_dag.py`                              |
+| `user_process/` | Demonstrates an HTTP sensor to retrieve and process data | `user_process.yaml`, `user_process.py`, `user_functions.py` (includes database connection) |
+| `producer/`     | Demonstrates dataset changes                     | `producer.yaml`, `producer.py`, `producer_functions.py` (works with consumer DAG) |
+| `consumer/`     | Processes data when a dataset change is detected | `consumer.yaml`, `consumer.py`, `consumer_functions.py` (pairs with producer DAG) |
+| `group_dag/`    | Aggregates multiple tasks into groups for easier management | `group_dag.yaml`, `group_dag.py` (demonstrates task groups) |
+| `xcom_dag/`     | Demonstrates data passing between tasks via XComs | `xcom_dag.yaml`, `xcom_dag.py`, `xcom_functions.py` (shows branching and XCom) |
+| `elastic_dag/`  | Demonstrates the use of a custom plugin in a DAG | `elastic_dag.yaml`, `elastic_dag.py`, `elastic_functions.py` (requires Elasticsearch connection) |
+
+### Traditional Python DAG
+
+| Folder         | Description                                      | Files                                                                |
+| -------------- | ------------------------------------------------ | -------------------------------------------------------------------- |
+| `sample-dag/`  | Example of traditional Python DAG creation      | `sample-dag.py` (old-fashioned Airflow DAG without DAG Factory)     |
+
+### Key Features
+
+- **DAG Factory 1.0.0**: All DAGs (except sample-dag) use YAML configuration for declarative DAG creation
+- **Apache Airflow 3.0.6**: Latest stable version with improved performance and features
+- **Organized Structure**: Each DAG has its own folder with YAML config, Python loader, and custom functions
+- **Custom Functions**: Python functions are separated into dedicated modules for better organization
+- **Task Groups**: Demonstrated in group_dag for better task organization
+- **Datasets**: Producer/Consumer pattern shows data-driven scheduling
+- **Custom Plugins**: Elastic DAG shows integration with custom hooks
 
 
 ## DAGs Running History
