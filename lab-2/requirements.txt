@@ -1,3 +1,8 @@
 # Minimal requirements for simple Airflow setup
 dag-factory==1.0.0
 apache-airflow-providers-postgres>=5.0.0
+
+# Data processing dependencies for complex DAGs
+pandas>=1.5.0
+numpy>=1.24.0
+sqlalchemy>=1.4.0

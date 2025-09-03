@@ -2,7 +2,7 @@
 
 echo "🛑 Stopping Simple Airflow Lab..."
 
-docker-compose down
+docker compose down
 
 echo "✅ Airflow services stopped."
 echo ""

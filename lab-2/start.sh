@@ -13,7 +13,7 @@ echo "📁 Directories created. Permissions will be set by Docker..."
 
 # Start Airflow services
 echo "📦 Starting Docker services..."
-docker-compose up -d
+docker compose up -d
 
 echo ""
 echo "✅ Airflow is starting up!"

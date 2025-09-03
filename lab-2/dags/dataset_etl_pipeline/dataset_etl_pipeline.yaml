@@ -1,0 +1,208 @@
+default:
+  owner: 'data-team'
+  depends_on_past: false
+  start_date: 2025-01-01
+  email_on_failure: false
+  email_on_retry: false
+  retries: 2
+  retry_delay_sec: 300
+
+dataset_etl_pipeline:
+  description: 'Complex multi-stage dataset processing pipeline demonstrating ETL best practices'
+  schedule: '@daily'
+  max_active_runs: 1
+  catchup: false
+  tags: ['etl', 'dataset', 'pipeline', 'complex', 'dag-factory']
+
+  tasks:
+    # Stage 1: Data Extraction
+    extract_raw_data:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: extract_sample_dataset
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        dataset_name: 'customer_transactions'
+        output_path: '/tmp/airflow/raw_data'
+        num_records: 10000
+
+    validate_raw_data:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: validate_raw_data
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/raw_data'
+      dependencies: [extract_raw_data]
+
+    # Stage 2: Data Quality Checks (Parallel)
+    check_data_completeness:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: check_data_completeness
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/raw_data'
+        completeness_threshold: 0.95
+      dependencies: [validate_raw_data]
+
+    check_data_duplicates:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: check_duplicates
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/raw_data'
+        duplicate_threshold: 0.05
+      dependencies: [validate_raw_data]
+
+    check_data_outliers:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: detect_outliers
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/raw_data'
+        outlier_method: 'iqr'
+      dependencies: [validate_raw_data]
+
+    # Stage 3: Data Cleaning
+    clean_missing_values:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: handle_missing_values
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/raw_data'
+        output_path: '/tmp/airflow/cleaned_data'
+        strategy: 'forward_fill'
+      dependencies: [check_data_completeness, check_data_duplicates, check_data_outliers]
+
+    remove_duplicates:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: remove_duplicates
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/cleaned_data'
+        output_path: '/tmp/airflow/deduped_data'
+        subset_columns: ['customer_id', 'transaction_date', 'transaction_amount']
+      dependencies: [clean_missing_values]
+
+    # Stage 4: Feature Engineering (Parallel)
+    calculate_customer_metrics:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: calculate_customer_metrics
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/deduped_data'
+        output_path: '/tmp/airflow/customer_metrics'
+      dependencies: [remove_duplicates]
+
+    create_time_features:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: create_time_features
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/deduped_data'
+        output_path: '/tmp/airflow/time_features'
+      dependencies: [remove_duplicates]
+
+    calculate_rolling_averages:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: calculate_rolling_averages
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/deduped_data'
+        output_path: '/tmp/airflow/rolling_metrics'
+        window_days: [7, 30, 90]
+      dependencies: [remove_duplicates]
+
+    # Stage 5: Data Analysis
+    perform_cohort_analysis:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: perform_cohort_analysis
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/deduped_data'
+        customer_metrics_path: '/tmp/airflow/customer_metrics'
+        output_path: '/tmp/airflow/cohort_analysis'
+      dependencies: [calculate_customer_metrics]
+
+    generate_transaction_insights:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: generate_transaction_insights
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/deduped_data'
+        time_features_path: '/tmp/airflow/time_features'
+        output_path: '/tmp/airflow/transaction_insights'
+      dependencies: [create_time_features]
+
+    calculate_trend_analysis:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: calculate_trend_analysis
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/rolling_metrics'
+        output_path: '/tmp/airflow/trend_analysis'
+      dependencies: [calculate_rolling_averages]
+
+    # Stage 6: Data Consolidation
+    merge_analysis_results:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: merge_analysis_results
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        cohort_path: '/tmp/airflow/cohort_analysis'
+        insights_path: '/tmp/airflow/transaction_insights'
+        trends_path: '/tmp/airflow/trend_analysis'
+        output_path: '/tmp/airflow/final_dataset'
+      dependencies: [perform_cohort_analysis, generate_transaction_insights, calculate_trend_analysis]
+
+    # Stage 7: Data Export (Parallel)
+    export_to_csv:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: export_to_csv
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/final_dataset'
+        output_path: '/tmp/airflow/exports/dataset.csv'
+      dependencies: [merge_analysis_results]
+
+    export_to_parquet:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: export_to_parquet
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/final_dataset'
+        output_path: '/tmp/airflow/exports/dataset.parquet'
+      dependencies: [merge_analysis_results]
+
+    export_summary_json:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: export_summary_statistics
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        input_path: '/tmp/airflow/final_dataset'
+        output_path: '/tmp/airflow/exports/summary_stats.json'
+      dependencies: [merge_analysis_results]
+
+    # Stage 8: Quality Assurance
+    validate_final_dataset:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: validate_final_dataset
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        dataset_path: '/tmp/airflow/final_dataset'
+        min_records: 5000
+        required_columns: ['customer_id', 'transaction_amount', 'processed_date']
+      dependencies: [export_to_csv, export_to_parquet, export_summary_json]
+
+    # Stage 9: Reporting
+    generate_data_quality_report:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: generate_quality_report
+      python_callable_file: /opt/airflow/dags/dataset_etl_pipeline/dataset_functions.py
+      op_kwargs:
+        dataset_path: '/tmp/airflow/final_dataset'
+        output_path: '/tmp/airflow/reports/quality_report.html'
+      dependencies: [validate_final_dataset]
+
+    send_completion_notification:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "📊 Dataset ETL Pipeline completed successfully! Reports available in /tmp/airflow/reports/"'
+      dependencies: [generate_data_quality_report]
