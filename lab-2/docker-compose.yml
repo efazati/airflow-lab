@@ -8,12 +8,13 @@ services:
     command:
       - -c
       - |
-        mkdir -p /opt/airflow/logs /opt/airflow/dags
-        chown -R 50000:0 /opt/airflow/logs /opt/airflow/dags
-        chmod -R 755 /opt/airflow/logs /opt/airflow/dags
+        mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/datasets
+        chown -R 1000:0 /opt/airflow/logs /opt/airflow/dags /opt/airflow/datasets
+        chmod -R 755 /opt/airflow/logs /opt/airflow/dags /opt/airflow/datasets
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
+      - ./datasets:/opt/airflow/datasets
     user: "0:0"  # Run as root to set permissions
 
   postgres:
@@ -42,11 +43,12 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-      _PIP_ADDITIONAL_REQUIREMENTS: 'dag-factory==1.0.0 apache-airflow-providers-postgres>=5.0.0'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'dag-factory==1.0.0 apache-airflow-providers-postgres>=5.0.0 dlt[duckdb]>=0.4.0 duckdb>=0.9.0 pandas>=1.5.0 numpy>=1.24.0 sqlalchemy>=1.4.0'
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
-    user: "50000:0"
+      - ./datasets:/opt/airflow/datasets
+    user: "1000:0"
     entrypoint: /bin/bash
     command:
       - -c
@@ -64,14 +66,15 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
-      _PIP_ADDITIONAL_REQUIREMENTS: 'dag-factory==1.0.0 apache-airflow-providers-postgres>=5.0.0'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'dag-factory==1.0.0 apache-airflow-providers-postgres>=5.0.0 dlt[duckdb]>=0.4.0 duckdb>=0.9.0 pandas>=1.5.0 numpy>=1.24.0 sqlalchemy>=1.4.0'
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
+      - ./datasets:/opt/airflow/datasets
     ports:
       - "8080:8080"
     command: webserver
-    user: "50000:0"
+    user: "1000:0"
     restart: always
 
   airflow-scheduler:
@@ -84,12 +87,13 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
-      _PIP_ADDITIONAL_REQUIREMENTS: 'dag-factory==1.0.0 apache-airflow-providers-postgres>=5.0.0'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'dag-factory==1.0.0 apache-airflow-providers-postgres>=5.0.0 dlt[duckdb]>=0.4.0 duckdb>=0.9.0 pandas>=1.5.0 numpy>=1.24.0 sqlalchemy>=1.4.0'
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
+      - ./datasets:/opt/airflow/datasets
     command: scheduler
-    user: "50000:0"
+    user: "1000:0"
     restart: always
 
 volumes:

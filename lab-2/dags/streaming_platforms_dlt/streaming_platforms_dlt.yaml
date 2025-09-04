@@ -1,0 +1,80 @@
+streaming_platforms_dlt_pipeline:
+  description: "Load streaming platform datasets using dlt and create unified table"
+  schedule: "@daily"
+  start_date: 2025-01-01
+  catchup: false
+  max_active_runs: 1
+  tags:
+    - dlt
+    - streaming
+    - etl
+    - duckdb
+
+  default_args:
+    owner: "data-team"
+    depends_on_past: false
+    email_on_failure: false
+    email_on_retry: false
+    retries: 1
+    retry_delay_minutes: 5
+
+  tasks:
+    load_netflix_data:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: load_csv_to_dlt
+      python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
+      op_kwargs:
+        platform_name: "netflix"
+        csv_filename: "netflix_titles.csv"
+        datasets_path: "/opt/airflow/datasets"
+
+    load_disney_data:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: load_csv_to_dlt
+      python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
+      op_kwargs:
+        platform_name: "disney"
+        csv_filename: "disney_plus_titles.csv"
+        datasets_path: "/opt/airflow/datasets"
+
+    load_hulu_data:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: load_csv_to_dlt
+      python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
+      op_kwargs:
+        platform_name: "hulu"
+        csv_filename: "hulu_titles.csv"
+        datasets_path: "/opt/airflow/datasets"
+
+    load_prime_data:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: load_csv_to_dlt
+      python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
+      op_kwargs:
+        platform_name: "prime"
+        csv_filename: "amazon_prime_titles.csv"
+        datasets_path: "/opt/airflow/datasets"
+
+    create_unified_table:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: create_unified_table
+      python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
+      dependencies:
+        - load_netflix_data
+        - load_disney_data
+        - load_hulu_data
+        - load_prime_data
+
+    validate_data:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: validate_data
+      python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
+      dependencies:
+        - create_unified_table
+
+    analyze_cross_platform_rankings:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: analyze_cross_platform_rankings
+      python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
+      dependencies:
+        - create_unified_table
