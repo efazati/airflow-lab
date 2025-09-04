@@ -1,13 +1,15 @@
-# Streaming Platforms Data Pipeline using dlt
+# Streaming Platforms Pure ORM Data Pipeline
 
-This DAG processes streaming platform datasets (Netflix, Disney+, Hulu, Amazon Prime) and loads them into DuckDB using [dlt (data load tool)](https://dlthub.com/).
+This DAG processes streaming platform datasets (Netflix, Disney+, Hulu, Amazon Prime) using a **pure SQLAlchemy ORM approach** with DuckDB as the backend database.
 
 ## Overview
 
 The pipeline performs the following operations:
-1. **Parallel CSV Import**: Loads 4 CSV files in parallel to DuckDB using dlt
-2. **Data Unification**: Creates a unified table with standardized schema
-3. **Data Validation**: Provides summary statistics and data quality checks
+1. **Parallel CSV Import**: Loads 4 CSV files in parallel using pure ORM operations
+2. **Data Merging**: Merges and deduplicates titles across platforms using ORM logic
+3. **Data Validation**: Comprehensive statistics and quality checks with ORM queries
+4. **Cross-Platform Analysis**: Advanced analytics using SQLAlchemy ORM features
+5. **ORM Demonstrations**: Showcases advanced ORM capabilities and patterns
 
 ## Schema
 

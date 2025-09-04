@@ -1,5 +1,5 @@
 streaming_platforms_dlt_pipeline:
-  description: "Load streaming platform datasets using dlt and create unified table"
+  description: "Load streaming platform datasets using dlt with pure ORM approach"
   schedule: "@daily"
   start_date: 2025-01-01
   catchup: false
@@ -9,6 +9,8 @@ streaming_platforms_dlt_pipeline:
     - streaming
     - etl
     - duckdb
+    - orm
+    - sqlalchemy
 
   default_args:
     owner: "data-team"
@@ -21,7 +23,7 @@ streaming_platforms_dlt_pipeline:
   tasks:
     load_netflix_data:
       operator: airflow.operators.python.PythonOperator
-      python_callable_name: load_csv_to_dlt
+      python_callable_name: load_csv_to_orm_direct
       python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
       op_kwargs:
         platform_name: "netflix"
@@ -30,7 +32,7 @@ streaming_platforms_dlt_pipeline:
 
     load_disney_data:
       operator: airflow.operators.python.PythonOperator
-      python_callable_name: load_csv_to_dlt
+      python_callable_name: load_csv_to_orm_direct
       python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
       op_kwargs:
         platform_name: "disney"
@@ -39,7 +41,7 @@ streaming_platforms_dlt_pipeline:
 
     load_hulu_data:
       operator: airflow.operators.python.PythonOperator
-      python_callable_name: load_csv_to_dlt
+      python_callable_name: load_csv_to_orm_direct
       python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
       op_kwargs:
         platform_name: "hulu"
@@ -48,16 +50,16 @@ streaming_platforms_dlt_pipeline:
 
     load_prime_data:
       operator: airflow.operators.python.PythonOperator
-      python_callable_name: load_csv_to_dlt
+      python_callable_name: load_csv_to_orm_direct
       python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
       op_kwargs:
         platform_name: "prime"
         csv_filename: "amazon_prime_titles.csv"
         datasets_path: "/opt/airflow/datasets"
 
-    create_unified_table:
+    merge_duplicate_titles:
       operator: airflow.operators.python.PythonOperator
-      python_callable_name: create_unified_table
+      python_callable_name: merge_titles_using_orm
       python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
       dependencies:
         - load_netflix_data
@@ -67,14 +69,22 @@ streaming_platforms_dlt_pipeline:
 
     validate_data:
       operator: airflow.operators.python.PythonOperator
-      python_callable_name: validate_data
+      python_callable_name: validate_data_pure_orm
       python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
       dependencies:
-        - create_unified_table
+        - merge_duplicate_titles
 
     analyze_cross_platform_rankings:
       operator: airflow.operators.python.PythonOperator
-      python_callable_name: analyze_cross_platform_rankings
+      python_callable_name: analyze_with_pure_orm
       python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
       dependencies:
-        - create_unified_table
+        - merge_duplicate_titles
+
+    demonstrate_orm_capabilities:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: demonstrate_orm_power
+      python_callable_file: /opt/airflow/dags/streaming_platforms_dlt/functions.py
+      dependencies:
+        - validate_data
+        - analyze_cross_platform_rankings

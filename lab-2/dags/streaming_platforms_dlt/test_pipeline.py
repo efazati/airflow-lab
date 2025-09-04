@@ -15,26 +15,23 @@ import argparse
 # Add the current directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from functions import load_csv_to_dlt, create_unified_table, validate_data, analyze_cross_platform_rankings
+from functions import load_csv_to_orm_direct, merge_titles_using_orm, validate_data_pure_orm, analyze_with_pure_orm, demonstrate_orm_power
 import duckdb
 
 def test_pipeline():
-    """Test the complete pipeline"""
-    print("🚀 Testing Streaming Platforms dlt Pipeline")
-    print("=" * 50)
+    """Test the complete pure ORM pipeline"""
+    print("🚀 Testing Streaming Platforms Pure ORM Pipeline")
+    print("=" * 60)
 
     # Override the database path for testing
     import functions
-    functions.DUCKDB_PATH = '/tmp/test_streaming_platforms.duckdb'
+    functions.DUCKDB_PATH = '/tmp/test_streaming_platforms_pure_orm.duckdb'
     # Use the original datasets location
     functions.DATASETS_PATH = '/home/efazati/projects/airflow-lab/lab-2/datasets'
 
-    # Set environment variable for DuckDB path
-    os.environ['DESTINATION__DUCKDB__CREDENTIALS'] = functions.DUCKDB_PATH
-
     try:
-        # Test 1: Load individual CSV files
-        print("\n📊 Step 1: Loading CSV files to DuckDB using dlt")
+        # Test 1: Load individual CSV files using pure ORM
+        print("\n📊 Step 1: Loading CSV files using Pure ORM")
         platforms = [
             ('netflix', 'netflix_titles.csv'),
             ('disney', 'disney_plus_titles.csv'),
@@ -42,72 +39,84 @@ def test_pipeline():
             ('prime', 'amazon_prime_titles.csv')
         ]
 
+        # Clear existing data first
+        from models import DatabaseManager, StreamingTitle
+        db_manager = DatabaseManager(functions.DUCKDB_PATH)
+        session = db_manager.get_session()
+        session.query(StreamingTitle).delete()
+        session.commit()
+        session.close()
+        db_manager.close()
+
         for platform_name, csv_file in platforms:
-            print(f"  Loading {platform_name} data...")
-            load_csv_to_dlt(platform_name, csv_file)
+            print(f"  Loading {platform_name} data using ORM...")
+            load_csv_to_orm_direct(platform_name, csv_file)
             print(f"  ✅ {platform_name} data loaded successfully")
 
-        # Test 2: Create unified table
-        print("\n🔗 Step 2: Creating unified table")
-        create_unified_table()
-        print("  ✅ Unified table created successfully")
+        # Test 2: Merge duplicate titles using ORM
+        print("\n🔗 Step 2: Merging duplicate titles using ORM")
+        merge_titles_using_orm()
+        print("  ✅ Title merging completed successfully")
 
-        # Test 3: Validate data
-        print("\n✅ Step 3: Validating data")
-        validate_data()
+        # Test 3: Validate data using pure ORM
+        print("\n✅ Step 3: Validating data using Pure ORM")
+        validate_data_pure_orm()
 
-        # Test 4: Cross-platform rankings
-        print("\n🏆 Step 4: Cross-platform rankings")
-        analyze_cross_platform_rankings()
+        # Test 4: Cross-platform analysis using pure ORM
+        print("\n🏆 Step 4: Cross-platform analysis using Pure ORM")
+        analyze_with_pure_orm()
 
-        # Test 5: Run some sample queries
-        print("\n🔍 Step 5: Sample queries")
-        conn = duckdb.connect(functions.DUCKDB_PATH)
+        # Test 5: Demonstrate ORM capabilities
+        print("\n🎯 Step 5: Demonstrating ORM capabilities")
+        demonstrate_orm_power()
 
-        # Query 1: Content on multiple platforms
-        multi_platform_query = """
-        SELECT title, release_year,
-               in_netflix, in_disney, in_hulu, in_prime,
-               (in_netflix::int + in_disney::int + in_hulu::int + in_prime::int) as platform_count
-        FROM main.unified_streaming_platforms
-        WHERE (in_netflix::int + in_disney::int + in_hulu::int + in_prime::int) > 1
-        ORDER BY platform_count DESC, title
-        LIMIT 10
-        """
+        # Test 6: Run some sample ORM queries
+        print("\n🔍 Step 6: Sample ORM queries")
 
-        results = conn.execute(multi_platform_query).fetchall()
-        if results:
-            print("\n🎬 Top content available on multiple platforms:")
-            for row in results:
-                platforms_list = []
-                if row[2]: platforms_list.append("Netflix")
-                if row[3]: platforms_list.append("Disney+")
-                if row[4]: platforms_list.append("Hulu")
-                if row[5]: platforms_list.append("Prime")
-                print(f"  • {row[0]} ({row[1]}) - {len(platforms_list)} platforms: {', '.join(platforms_list)}")
+        # Use ORM instead of raw DuckDB connection
+        db_manager = DatabaseManager(functions.DUCKDB_PATH)
+        session = db_manager.get_session()
 
-        # Query 2: Platform comparison
-        platform_stats_query = """
-        SELECT
-            SUM(in_netflix::int) as netflix_titles,
-            SUM(in_disney::int) as disney_titles,
-            SUM(in_hulu::int) as hulu_titles,
-            SUM(in_prime::int) as prime_titles,
-            COUNT(*) as total_unique_titles
-        FROM main.unified_streaming_platforms
-        """
+        # Query 1: Content on multiple platforms using ORM
+        multi_platform_titles = session.query(StreamingTitle).filter(
+            (StreamingTitle.in_netflix.cast(int) +
+             StreamingTitle.in_disney.cast(int) +
+             StreamingTitle.in_hulu.cast(int) +
+             StreamingTitle.in_prime.cast(int)) > 1
+        ).order_by(
+            (StreamingTitle.in_netflix.cast(int) +
+             StreamingTitle.in_disney.cast(int) +
+             StreamingTitle.in_hulu.cast(int) +
+             StreamingTitle.in_prime.cast(int)).desc(),
+            StreamingTitle.title
+        ).limit(10).all()
 
-        stats = conn.execute(platform_stats_query).fetchone()
-        print(f"\n📈 Platform Statistics:")
-        print(f"  • Netflix: {stats[0]:,} titles")
-        print(f"  • Disney+: {stats[1]:,} titles")
-        print(f"  • Hulu: {stats[2]:,} titles")
-        print(f"  • Amazon Prime: {stats[3]:,} titles")
-        print(f"  • Total unique titles: {stats[4]:,}")
+        if multi_platform_titles:
+            print("\n🎬 Top content available on multiple platforms (ORM):")
+            for title in multi_platform_titles:
+                print(f"  • {title.title} ({title.release_year}) - {title.platform_count} platforms: {', '.join(title.platforms_list)}")
 
-        conn.close()
+        # Query 2: Platform comparison using ORM
+        from sqlalchemy import func
+        stats = session.query(
+            func.sum(StreamingTitle.in_netflix.cast(int)).label('netflix'),
+            func.sum(StreamingTitle.in_disney.cast(int)).label('disney'),
+            func.sum(StreamingTitle.in_hulu.cast(int)).label('hulu'),
+            func.sum(StreamingTitle.in_prime.cast(int)).label('prime'),
+            func.count(StreamingTitle.show_id).label('total')
+        ).first()
 
-        print("\n🎉 Pipeline test completed successfully!")
+        print(f"\n📈 Platform Statistics (ORM):")
+        print(f"  • Netflix: {stats.netflix:,} titles")
+        print(f"  • Disney+: {stats.disney:,} titles")
+        print(f"  • Hulu: {stats.hulu:,} titles")
+        print(f"  • Amazon Prime: {stats.prime:,} titles")
+        print(f"  • Total unique titles: {stats.total:,}")
+
+        session.close()
+        db_manager.close()
+
+        print("\n🎉 Pure ORM Pipeline test completed successfully!")
         print(f"📁 Test database saved at: {functions.DUCKDB_PATH}")
 
     except Exception as e:
