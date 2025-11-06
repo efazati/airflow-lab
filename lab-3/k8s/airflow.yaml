@@ -1,0 +1,41 @@
+# airflow-values.yaml
+executor: "KubernetesExecutor"
+
+postgresql:
+  enabled: false
+
+# Configure external PostgreSQL connection
+data:
+  metadataConnection:
+    user: airflow
+    pass: airflow123
+    protocol: postgresql
+    host: postgres-external
+    port: 5432
+    db: airflow
+    sslmode: disable
+
+# For dag-factory support
+extraPipPackages:
+  - "dag-factory==0.18.1"
+
+dags:
+  persistence:
+    enabled: true
+    size: 5Gi
+
+webserver:
+  replicas: 1
+  defaultUser:
+    enabled: true
+    username: admin
+    email: admin@example.com
+    firstName: Admin
+    lastName: User
+    password: admin
+
+config:
+  core:
+    load_examples: 'false'
+  webserver:
+    expose_config: 'true'

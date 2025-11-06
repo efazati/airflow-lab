@@ -1,0 +1,17 @@
+title: "K8S Workspace"
+description: "A workspace for K8S development"
+
+duration: 5
+duration_unit: "hours"
+
+boxes:
+  - title: "k8s"
+    description: "K8S node"
+    recipe_title: "Kubernetes Cluster"
+  # - title: "Python Dev Env"
+  #   description: "Python development environment"
+  #   recipe_title: "Python Dev Env"
+  # - title: "Gitea"
+  #   description: "Gitea server"
+  #   recipe_title: "Gitea Server"
+
