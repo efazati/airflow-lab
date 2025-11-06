@@ -1,13 +1,16 @@
-title: "K8S Workspace"
-description: "A workspace for K8S development"
+title: "Airflow Workspace"
+description: "A workspace for Airflow development"
 
 duration: 5
 duration_unit: "hours"
 
 boxes:
-  - title: "k8s"
-    description: "K8S node"
-    recipe_title: "Kubernetes Cluster"
+  - title: "k3s"
+    description: "k3s"
+    # recipe_title: "Kubernetes Cluster"
+    # recipe_title: "Ubuntu 24.04 LTS"
+    recipe_title: "K3s"
+    export_kubeconfig: true
   # - title: "Python Dev Env"
   #   description: "Python development environment"
   #   recipe_title: "Python Dev Env"

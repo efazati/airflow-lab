@@ -21,12 +21,35 @@ display_env() {
     [ -n "$KUBECONFIG" ] && echo "KUBECONFIG: $KUBECONFIG"
 }
 
+check_workspace_active() {
+    load_env
+    echo "🔍 Checking workspace status..."
+    WS_STATUS=$(ee describe ws "$WS" --json 2>&1)
+
+    if ! echo "$WS_STATUS" | jq -e . >/dev/null 2>&1; then
+        echo "❌ Failed to get workspace status"
+        return 1
+    fi
+
+    STATUS=$(echo "$WS_STATUS" | jq -r '.status // .state // "unknown"')
+    echo "   Status: $STATUS"
+
+    if [[ "$STATUS" != "running" && "$STATUS" != "active" ]]; then
+        echo "❌ Workspace is not active (status: $STATUS)"
+        echo "   Run './ee_setup.sh init' to create a new workspace or start the existing one with: ee start ws $WS"
+        return 1
+    fi
+
+    echo "✅ Workspace is active"
+    return 0
+}
+
 cmd_init() {
     set -e
-    echo "🚀 Setting up Kubernetes Lab..."
+    echo "🚀 Setting up workspace..."
 
     echo "📦 Creating workspace..."
-    WS=$(ee create ws --config=./ee_k8s_cluster.yml --json | jq -r '.uuid')
+    WS=$(ee create ws --config=./ee_conf.yml --json | jq -r '.uuid')
     [ -z "$WS" ] && { echo "❌ Failed to get workspace ID"; exit 1; }
     echo "✅ Workspace: $WS"
 
@@ -48,6 +71,15 @@ cmd_init() {
             echo "BOX_$title=$id" >> .env
             echo "  ✅ BOX_$title=$id"
         done < <(echo "$WS_DESCRIBE" | jq -c '.boxes[]')
+
+        # Check for box with export_kubeconfig flag
+        KUBE_BOX=$(yq eval '.boxes[] | select(.export_kubeconfig == true) | .title' ./ee_conf.yml | head -1)
+        if [ -n "$KUBE_BOX" ]; then
+            KUBE_BOX_VAR=$(echo "$KUBE_BOX" | tr '[:lower:]' '[:upper:]' | tr -d ' ' | tr '-' '_')
+            KUBE_BOX_ID=$(grep "^BOX_$KUBE_BOX_VAR=" .env | cut -d= -f2)
+            echo "BOX_KUBECONFIG=$KUBE_BOX_ID" >> .env
+            echo "  ✅ BOX_KUBECONFIG=$KUBE_BOX_ID (from $KUBE_BOX)"
+        fi
     else
         echo "❌ Failed to parse workspace"; exit 1
     fi
@@ -56,7 +88,7 @@ cmd_init() {
 }
 
 cmd_vpn() {
-    load_env
+    check_workspace_active || exit 1
     echo "🌐 Connecting VPN for WS=$WS..."
 
     if ! command -v netbird &> /dev/null; then
@@ -99,20 +131,22 @@ cmd_vpn() {
 }
 
 cmd_kube() {
-    load_env
-    BOX_K8S=$(grep "^BOX_.*K8S" "$ENV_FILE" | head -1 | cut -d= -f2)
-    [ -z "$BOX_K8S" ] && { echo "❌ K8S box not found"; exit 1; }
+    check_workspace_active || exit 1
+    BOX_KUBECONFIG=$(grep "^BOX_KUBECONFIG=" "$ENV_FILE" | cut -d= -f2)
+    [ -z "$BOX_KUBECONFIG" ] && { echo "❌ No box configured for kubeconfig export. Add 'export_kubeconfig: true' to a box in ee_conf.yml"; exit 1; }
 
-    echo "🔧 Exporting kubeconfig (WS=$WS, Box=$BOX_K8S)..."
+    echo "🔧 Exporting kubeconfig (WS=$WS, Box=$BOX_KUBECONFIG)..."
     echo "🔑 Copying SSH key..."
-    ee box ssh-copy-id "$WS" "$BOX_K8S"
+    ee box ssh-copy-id "$WS" "$BOX_KUBECONFIG"
 
-    BOX_HOSTNAME=$(ee box hostname "$WS" "$BOX_K8S")
-    ee box exec "$WS" "$BOX_K8S" "kubectl config view --raw" | \
-        sed "s/127.0.0.1/$BOX_HOSTNAME/g" > kubeconfig.yaml
+    BOX_HOSTNAME=$(ee box hostname "$WS" "$BOX_KUBECONFIG")
+    ee box exec "$WS" "$BOX_KUBECONFIG" "kubectl config view --raw" | \
+        sed "s/127.0.0.1/$BOX_HOSTNAME/g" | \
+        sed '/certificate-authority-data:/d' | \
+        sed '/server:/a\    insecure-skip-tls-verify: true' > kubeconfig.yaml
 
     if ! grep -q "^KUBECONFIG=" "$ENV_FILE"; then
-        echo -e "\nKUBECONFIG=$SCRIPT_DIR/kubeconfig.yaml\nBOX_K8S_HOSTNAME=$BOX_HOSTNAME" >> .env
+        echo -e "\nKUBECONFIG=$SCRIPT_DIR/kubeconfig.yaml\nBOX_KUBECONFIG_HOSTNAME=$BOX_HOSTNAME" >> .env
     fi
 
     export KUBECONFIG="$SCRIPT_DIR/kubeconfig.yaml"
