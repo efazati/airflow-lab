@@ -1,4 +1,8 @@
 # airflow-values.yaml
+# Pin to Airflow 2.10.5
+airflowVersion: "2.10.5"
+defaultAirflowTag: "2.10.5"
+
 executor: "KubernetesExecutor"
 
 postgresql:
@@ -23,6 +27,12 @@ dags:
   persistence:
     enabled: true
     size: 5Gi
+
+# Logs persistence using hostPath (single-node K3s)
+logs:
+  persistence:
+    enabled: true
+    existingClaim: airflow-logs
 
 webserver:
   replicas: 1

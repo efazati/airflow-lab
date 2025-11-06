@@ -15,8 +15,8 @@ default_args = {
 with DAG(
     'echo_time',
     default_args=default_args,
-    description='Echo current time every minute',
-    schedule_interval='* * * * *',  # Every minute
+    description='Echo current time every hour',
+    schedule_interval='0 * * * *',  # Every hour
     catchup=False,
     tags=['example', 'time'],
 ) as dag:

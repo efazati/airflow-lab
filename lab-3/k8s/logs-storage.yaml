@@ -1,0 +1,32 @@
+---
+# PersistentVolume for Airflow logs using hostPath (single-node K3s)
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: airflow-logs-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteMany  # Works on single node
+  hostPath:
+    path: /opt/airflow-logs
+    type: DirectoryOrCreate
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+---
+# PersistentVolumeClaim for Airflow logs
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: airflow-logs
+  namespace: airflow
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  volumeName: airflow-logs-pv
+  storageClassName: ""
+
