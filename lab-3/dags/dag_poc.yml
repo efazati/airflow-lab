@@ -1,0 +1,64 @@
+# DAG Factory Example - Declarative DAG via YAML
+# Documentation: https://github.com/astronomer/dag-factory
+
+example_dag_factory:
+  default_args:
+    owner: 'airflow'
+    start_date: '2024-01-01'
+    retries: 1
+  schedule_interval: '0 */6 * * *'  # Every 6 hours
+  catchup: false
+  description: 'Example DAG created with dag-factory'
+  tags: ['dag-factory', 'example']
+
+  tasks:
+    # Task 1: Print start message
+    start_task:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Starting dag-factory example at $(date)"'
+
+    # Task 2: Python task
+    process_data:
+      operator: airflow.operators.python.PythonOperator
+      python_callable_name: process_data_func
+      python_callable_file: /opt/airflow/dags/dag_factory_functions.py
+      dependencies: [start_task]
+
+    # Task 3: Another bash task
+    check_status:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Status check at $(date)" && sleep 5'
+      dependencies: [process_data]
+
+    # Task 4: Final task
+    end_task:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Completed dag-factory example at $(date)"'
+      dependencies: [check_status]
+
+# Second DAG in same file
+data_pipeline:
+  default_args:
+    owner: 'airflow'
+    start_date: '2024-01-01'
+    retries: 2
+  schedule_interval: '0 12 * * *'  # Daily at noon
+  catchup: false
+  description: 'Data pipeline using dag-factory'
+  tags: ['dag-factory', 'data']
+
+  tasks:
+    extract:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Extracting data..." && sleep 2'
+
+    transform:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Transforming data..." && sleep 2'
+      dependencies: [extract]
+
+    load:
+      operator: airflow.operators.bash.BashOperator
+      bash_command: 'echo "Loading data..." && sleep 2'
+      dependencies: [transform]
+

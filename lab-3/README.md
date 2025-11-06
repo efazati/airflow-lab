@@ -31,11 +31,24 @@ kubectl port-forward -n airflow svc/airflow-webserver 8080:8080
 
 ## Deploy DAGs
 
+### Method 1: Traditional Python DAGs
+
 ```bash
 POD=$(kubectl get pods -n airflow -l component=scheduler -o jsonpath='{.items[0].metadata.name}')
 kubectl cp dags/echo_time.py airflow/$POD:/opt/airflow/dags/ -c scheduler
 # Wait 30-60s, DAG appears in UI
 ```
+
+### Method 2: Declarative DAGs with dag-factory (Advanced)
+
+⚠️ **Limitation**: [dag-factory](https://github.com/astronomer/dag-factory) requires building a custom Docker image for Airflow 2.10.5.
+
+The `extraPipPackages` parameter doesn't exist in Helm chart 1.16.0. Options:
+- **For this lab**: Use traditional Python DAGs (Method 1 above)
+- **For production**: Build custom image with dag-factory or upgrade to Airflow 3.x
+
+See [Airflow documentation](https://airflow.apache.org/docs/docker-stack/build.html) for building custom images.
+
 ## Logs Persistence
 
 Logs are stored on the K3s node at `/opt/airflow-logs` using hostPath volumes. This works for single-node clusters and persists logs across pod restarts.
@@ -90,21 +103,3 @@ kubectl delete namespace airflow
 # Cleanup workspace
 ./ee_setup.sh cleanup
 ```
-
-## Files
-
-| File | Description |
-|------|-------------|
-| `k8s/airflow.yaml` | Airflow Helm values (version 2.10.5, logs persistence enabled) |
-| `k8s/logs-storage.yaml` | **PV + PVC for logs** (hostPath, RWX) |
-| `k8s/postgres.yaml` | PostgreSQL database deployment |
-| `dags/echo_time.py` | Example DAG (runs hourly, Airflow 2.x syntax) |
-| `ee_setup.sh` | Workspace automation (init, vpn, kube) |
-
-## Architecture
-
-- **Executor**: KubernetesExecutor (each task runs in separate pod)
-- **DAGs Storage**: PersistentVolume (local-path, RWO) - shared across scheduler
-- **Logs Storage**: PersistentVolume (hostPath, RWX) - persists after pod termination
-- **Database**: PostgreSQL (external deployment)
-- **Version**: Airflow 2.10.5 (pinned)

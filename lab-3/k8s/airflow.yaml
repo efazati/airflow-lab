@@ -19,10 +19,6 @@ data:
     db: airflow
     sslmode: disable
 
-# For dag-factory support
-extraPipPackages:
-  - "dag-factory==0.18.1"
-
 dags:
   persistence:
     enabled: true
@@ -49,3 +45,7 @@ config:
     load_examples: 'false'
   webserver:
     expose_config: 'true'
+
+# Note: dag-factory requires custom Docker image for Airflow 2.10.5
+# extraPipPackages parameter not available in Helm chart 1.16.0
+# To use dag-factory: build custom image or upgrade to Airflow 3.x
