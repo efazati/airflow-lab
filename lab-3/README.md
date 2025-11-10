@@ -1,6 +1,6 @@
 # Lab 3: Airflow on K3s
 
-Kubernetes-based Airflow 2.10.5 deployment with KubernetesExecutor and persistent storage.
+Kubernetes-based Airflow 3.1 deployment with KubernetesExecutor and persistent storage.
 
 ## Quick Setup
 
@@ -18,14 +18,14 @@ kubectl create namespace airflow
 kubectl apply -f k8s/logs-storage.yaml  # Creates PV and PVC for logs
 kubectl apply -f k8s/postgres.yaml
 
-# 4. Install Airflow 2.10.5 with persistent logs
+# 4. Install Airflow 3.1 with persistent logs
 helm repo add apache-airflow https://airflow.apache.org && helm repo update
-helm install airflow apache-airflow/airflow --version 1.16.0 -n airflow -f k8s/airflow.yaml --timeout 10m
+helm install airflow apache-airflow/airflow --version 1.17.0 -n airflow -f k8s/airflow.yaml --timeout 10m
 
 # 5. Verify & Access
 kubectl get pods -n airflow -w
 kubectl get pvc -n airflow  # Should show airflow-logs as Bound
-kubectl port-forward -n airflow svc/airflow-webserver 8080:8080
+kubectl port-forward -n airflow svc/airflow-api-server 8080:8080
 # http://localhost:8080 (admin/admin)
 ```
 
@@ -41,13 +41,11 @@ kubectl cp dags/echo_time.py airflow/$POD:/opt/airflow/dags/ -c scheduler
 
 ### Method 2: Declarative DAGs with dag-factory (Advanced)
 
-⚠️ **Limitation**: [dag-factory](https://github.com/astronomer/dag-factory) requires building a custom Docker image for Airflow 2.10.5.
+✅ **Airflow 3.1**: [dag-factory](https://github.com/astronomer/dag-factory) can be added using `extraPipPackages` in newer Helm chart versions (1.17.0+).
 
-The `extraPipPackages` parameter doesn't exist in Helm chart 1.16.0. Options:
-- **For this lab**: Use traditional Python DAGs (Method 1 above)
-- **For production**: Build custom image with dag-factory or upgrade to Airflow 3.x
-
-See [Airflow documentation](https://airflow.apache.org/docs/docker-stack/build.html) for building custom images.
+For this lab, we use traditional Python DAGs (Method 1 above). To enable dag-factory:
+- Add `extraPipPackages: ["dag-factory==0.19.0"]` to k8s/airflow.yaml
+- See [Airflow documentation](https://airflow.apache.org/docs/docker-stack/build.html) for more options.
 
 ## Logs Persistence
 

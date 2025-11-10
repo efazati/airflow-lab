@@ -73,7 +73,7 @@ cmd_init() {
         done < <(echo "$WS_DESCRIBE" | jq -c '.boxes[]')
 
         # Check for box with export_kubeconfig flag
-        KUBE_BOX=$(yq eval '.boxes[] | select(.export_kubeconfig == true) | .title' ./ee_conf.yml | head -1)
+        KUBE_BOX=$(yq -r '.boxes[] | select(.export_kubeconfig == true) | .title' ./ee_conf.yml | head -1)
         if [ -n "$KUBE_BOX" ]; then
             KUBE_BOX_VAR=$(echo "$KUBE_BOX" | tr '[:lower:]' '[:upper:]' | tr -d ' ' | tr '-' '_')
             KUBE_BOX_ID=$(grep "^BOX_$KUBE_BOX_VAR=" .env | cut -d= -f2)

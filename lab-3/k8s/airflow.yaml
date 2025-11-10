@@ -1,7 +1,7 @@
 # airflow-values.yaml
-# Pin to Airflow 2.10.5
-airflowVersion: "2.10.5"
-defaultAirflowTag: "2.10.5"
+# Pin to Airflow 3.1
+airflowVersion: "3.1.0"
+defaultAirflowTag: "3.1.0"
 
 executor: "KubernetesExecutor"
 
@@ -46,6 +46,5 @@ config:
   webserver:
     expose_config: 'true'
 
-# Note: dag-factory requires custom Docker image for Airflow 2.10.5
-# extraPipPackages parameter not available in Helm chart 1.16.0
-# To use dag-factory: build custom image or upgrade to Airflow 3.x
+# Note: Airflow 3.1 supports extraPipPackages in newer Helm charts
+# For dag-factory support, consider using extraPipPackages parameter
