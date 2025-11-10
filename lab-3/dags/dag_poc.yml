@@ -6,7 +6,7 @@ example_dag_factory:
     owner: 'airflow'
     start_date: '2024-01-01'
     retries: 1
-  schedule_interval: '0 */6 * * *'  # Every 6 hours
+  schedule: '0 */6 * * *'  # Every 6 hours (dag-factory v1.0+ uses 'schedule')
   catchup: false
   description: 'Example DAG created with dag-factory'
   tags: ['dag-factory', 'example']
@@ -42,7 +42,7 @@ data_pipeline:
     owner: 'airflow'
     start_date: '2024-01-01'
     retries: 2
-  schedule_interval: '0 12 * * *'  # Daily at noon
+  schedule: '0 12 * * *'  # Daily at noon (dag-factory v1.0+ uses 'schedule')
   catchup: false
   description: 'Data pipeline using dag-factory'
   tags: ['dag-factory', 'data']

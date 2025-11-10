@@ -1,50 +1,81 @@
-# airflow-values.yaml
-# Pin to Airflow 3.1
-airflowVersion: "3.1.0"
-defaultAirflowTag: "3.1.0"
+# Community Airflow Helm Chart Configuration
+# Chart: airflow-helm/charts (version 8.9.0)
+# Airflow: 2.10.4 (latest supported by community chart)
 
-executor: "KubernetesExecutor"
+# Airflow version
+airflow:
+  image:
+    repository: apache/airflow
+    tag: 2.10.4-python3.11
+
+  # Executor type
+  executor: KubernetesExecutor
+
+  # Install additional Python packages (including dag-factory)
+  extraPipPackages:
+    - "dag-factory==1.0.1"
+    - "apache-airflow-providers-cncf-kubernetes"
+
+  # Airflow configuration
+  config:
+    AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "True"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "False"  # Auto-unpause new DAGs
+
+# External PostgreSQL connection
+externalDatabase:
+  type: postgres
+  host: postgres-external
+  port: 5432
+  database: airflow
+  user: airflow
+  password: airflow123
 
 postgresql:
   enabled: false
 
-# Configure external PostgreSQL connection
-data:
-  metadataConnection:
-    user: airflow
-    pass: airflow123
-    protocol: postgresql
-    host: postgres-external
-    port: 5432
-    db: airflow
-    sslmode: disable
-
+# DAGs configuration
 dags:
   persistence:
-    enabled: true
-    size: 5Gi
+    enabled: false
+  gitSync:
+    enabled: false
 
-# Logs persistence using hostPath (single-node K3s)
+# Logs configuration
 logs:
   persistence:
     enabled: true
     existingClaim: airflow-logs
 
-webserver:
+# Web server configuration
+web:
   replicas: 1
-  defaultUser:
-    enabled: true
-    username: admin
+  service:
+    type: ClusterIP
+
+# Scheduler configuration
+scheduler:
+  replicas: 1
+  logCleanup:
+    enabled: false
+
+# Workers (not needed for KubernetesExecutor, but keeping minimal config)
+workers:
+  enabled: false
+
+# Flower (not needed for KubernetesExecutor)
+flower:
+  enabled: false
+
+# Redis (not needed for KubernetesExecutor)
+redis:
+  enabled: false
+
+# Default user
+users:
+  - username: admin
+    password: admin
+    role: Admin
     email: admin@example.com
     firstName: Admin
     lastName: User
-    password: admin
-
-config:
-  core:
-    load_examples: 'false'
-  webserver:
-    expose_config: 'true'
-
-# Note: Airflow 3.1 supports extraPipPackages in newer Helm charts
-# For dag-factory support, consider using extraPipPackages parameter

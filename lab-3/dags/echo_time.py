@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.providers.standard.operators.bash import BashOperator
+from airflow.operators.bash import BashOperator
 
 default_args = {
     'owner': 'airflow',
@@ -13,22 +13,18 @@ default_args = {
 }
 
 with DAG(
-
-
     'echo_time',
     default_args=default_args,
     description='Echo current time every hour',
-    schedule='0 * * * *',  # Every hour (Airflow 3.x uses 'schedule' instead of 'schedule_interval')
+    schedule='0 * * * *',  # Every hour
     catchup=False,
     tags=['example', 'time'],
 ) as dag:
-
+    
     echo_task = BashOperator(
         task_id='echo_current_time',
         bash_command='date "+%Y-%m-%d %H:%M:%S" && echo "Current time: $(date)"',
     )
-
-    echo_task
 
 
 

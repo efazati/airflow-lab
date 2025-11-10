@@ -6,221 +6,250 @@ ENV_FILE="$SCRIPT_DIR/.env"
 
 # Detect if sourced
 sourced=0
-[ -n "$ZSH_VERSION" ] && [[ $ZSH_EVAL_CONTEXT =~ :file$ ]] && sourced=1
-[ -n "$BASH_VERSION" ] && (return 0 2>/dev/null) && sourced=1
+[ -n "${ZSH_VERSION:-}" ] && [[ ${ZSH_EVAL_CONTEXT:-} =~ :file$ ]] && sourced=1
+[ -n "${BASH_VERSION:-}" ] && (return 0 2>/dev/null) && sourced=1
+
+set -euo pipefail
 
 load_env() {
-    [ -f "$ENV_FILE" ] || { echo "❌ .env not found. Run './ee_setup.sh init' first."; return 1 2>/dev/null || exit 1; }
+    [ -f "$ENV_FILE" ] || { echo "❌ .env not found. Run './ee_setup.sh init'"; return 1 2>/dev/null || exit 1; }
     set -a; source "$ENV_FILE"; set +a
-    echo "✓ Loaded: WS=$WS"
 }
 
-display_env() {
-    echo "✅ Environment: WS=$WS"
-    echo "Boxes:"; env | grep "^BOX_" | sort | sed 's/^/  /'
-    [ -n "$KUBECONFIG" ] && echo "KUBECONFIG: $KUBECONFIG"
-}
-
-check_workspace_active() {
+check_active() {
     load_env
-    echo "🔍 Checking workspace status..."
-    WS_STATUS=$(ee describe ws "$WS" --json 2>&1)
-
-    if ! echo "$WS_STATUS" | jq -e . >/dev/null 2>&1; then
-        echo "❌ Failed to get workspace status"
-        return 1
-    fi
-
-    STATUS=$(echo "$WS_STATUS" | jq -r '.status // .state // "unknown"')
-    echo "   Status: $STATUS"
-
-    if [[ "$STATUS" != "running" && "$STATUS" != "active" ]]; then
-        echo "❌ Workspace is not active (status: $STATUS)"
-        echo "   Run './ee_setup.sh init' to create a new workspace or start the existing one with: ee start ws $WS"
-        return 1
-    fi
-
-    echo "✅ Workspace is active"
-    return 0
+    local status=$(ee describe ws "$WS" --json 2>&1 | jq -r '.status // .state // "unknown"')
+    [[ "$status" =~ ^(running|active)$ ]] || { echo "❌ Workspace not active"; exit 1; }
 }
+
+detect_type() {
+    [ -f "./ee_conf.yml" ] && grep -q "export_kubeconfig.*true" ./ee_conf.yml 2>/dev/null && echo "k8s" && return
+    echo "ansible"
+}
+
+# ─────────────────────────────────────────────────────────────
+# Commands
+# ─────────────────────────────────────────────────────────────
 
 cmd_init() {
-    set -e
-    echo "🚀 Setting up workspace..."
+    echo "🚀 Creating workspace..."
+    local ws=$(ee create ws --config=./ee_conf.yml --json | jq -r '.uuid')
+    [ -z "$ws" ] && { echo "❌ Failed to create workspace"; exit 1; }
 
-    echo "📦 Creating workspace..."
-    WS=$(ee create ws --config=./ee_conf.yml --json | jq -r '.uuid')
-    [ -z "$WS" ] && { echo "❌ Failed to get workspace ID"; exit 1; }
-    echo "✅ Workspace: $WS"
-
-    echo "🔄 Starting workspace..."
-    ee start ws "$WS"
-
-    echo "⏳ Waiting for workspace..."
+    echo "WS=$ws" > .env
+    ee start ws "$ws"
     sleep 10
 
-    echo "📦 Extracting box IDs..."
-    WS_DESCRIBE=$(ee describe ws "$WS" --json 2>&1)
+    echo "📦 Extracting box info..."
+    ee describe ws "$ws" --json | jq -rc '.boxes[]' | while read -r box; do
+        local title=$(echo "$box" | jq -r '.title' | tr '[:lower:]' '[:upper:]' | tr -d ' ' | tr '-' '_')
+        local id=$(echo "$box" | jq -r '.uuid // .id')
+        echo "BOX_$title=$id" >> .env
+    done
 
-    echo "WS=$WS" > .env
-
-    if echo "$WS_DESCRIBE" | jq -e . >/dev/null 2>&1; then
-        while IFS= read -r box; do
-            title=$(echo "$box" | jq -r '.title' | tr '[:lower:]' '[:upper:]' | tr -d ' ' | tr '-' '_')
-            id=$(echo "$box" | jq -r '.uuid // .id')
-            echo "BOX_$title=$id" >> .env
-            echo "  ✅ BOX_$title=$id"
-        done < <(echo "$WS_DESCRIBE" | jq -c '.boxes[]')
-
-        # Check for box with export_kubeconfig flag
-        KUBE_BOX=$(yq -r '.boxes[] | select(.export_kubeconfig == true) | .title' ./ee_conf.yml | head -1)
-        if [ -n "$KUBE_BOX" ]; then
-            KUBE_BOX_VAR=$(echo "$KUBE_BOX" | tr '[:lower:]' '[:upper:]' | tr -d ' ' | tr '-' '_')
-            KUBE_BOX_ID=$(grep "^BOX_$KUBE_BOX_VAR=" .env | cut -d= -f2)
-            echo "BOX_KUBECONFIG=$KUBE_BOX_ID" >> .env
-            echo "  ✅ BOX_KUBECONFIG=$KUBE_BOX_ID (from $KUBE_BOX)"
+    # Check for kubeconfig box
+    if command -v yq &>/dev/null; then
+        local kube_box=$(yq -r '.boxes[] | select(.export_kubeconfig == true) | .title' ./ee_conf.yml 2>/dev/null | head -1)
+        if [ -n "$kube_box" ]; then
+            local kube_var=$(echo "$kube_box" | tr '[:lower:]' '[:upper:]' | tr -d ' ' | tr '-' '_')
+            local kube_id=$(grep "^BOX_$kube_var=" .env | cut -d= -f2)
+            echo "BOX_KUBECONFIG=$kube_id" >> .env
         fi
-    else
-        echo "❌ Failed to parse workspace"; exit 1
     fi
 
-    echo -e "\n🎉 Complete! Next: ./ee_setup.sh vpn"
+    echo "✅ Workspace: $ws"
+    echo "Next: ./ee_setup.sh vpn"
 }
 
 cmd_vpn() {
-    check_workspace_active || exit 1
-    echo "🌐 Connecting VPN for WS=$WS..."
+    check_active
+    command -v netbird &>/dev/null || { echo "❌ Install NetBird: curl -fsSL https://pkgs.netbird.io/install.sh | sh"; exit 1; }
 
-    if ! command -v netbird &> /dev/null; then
-        echo "❌ NetBird not installed. Run: curl -fsSL https://pkgs.netbird.io/install.sh | sh"
-        exit 1
-    fi
-
-    # Clean NetBird config for fresh connection
-    echo "🧹 Cleaning NetBird config..."
+    echo "🌐 Connecting VPN..."
     netbird down 2>/dev/null || true
     sudo rm -f /var/lib/netbird/config.json
-
-    # Connect to workspace
     ee connect ws "$WS"
-
-    # Wait for DNS to propagate
-    echo "⏳ Waiting for DNS to propagate..."
     sleep 5
 
-    # Verify DNS is working by getting first box hostname
-    BOX_FIRST=$(grep "^BOX_" "$ENV_FILE" | head -1 | cut -d= -f2)
-    if [ -n "$BOX_FIRST" ]; then
-        BOX_HOSTNAME=$(ee box hostname "$WS" "$BOX_FIRST")
-        echo "🔍 Testing DNS for: $BOX_HOSTNAME"
+    # Test DNS
+    local box_id=$(grep "^BOX_" "$ENV_FILE" | head -1 | cut -d= -f2)
+    local hostname=$(ee box hostname "$WS" "$box_id")
+    for i in {1..10}; do
+        ping -c1 -W2 "$hostname" &>/dev/null && break
+        [ $i -eq 10 ] && echo "⚠️  DNS might not be ready"
+        sleep 2
+    done
 
-        # Try to resolve DNS (retry up to 10 times)
-        for i in {1..10}; do
-            if ping -c 1 -W 2 "$BOX_HOSTNAME" &>/dev/null || \
-               host "$BOX_HOSTNAME" &>/dev/null || \
-               nslookup "$BOX_HOSTNAME" &>/dev/null 2>&1; then
-                echo "✅ DNS resolved successfully!"
-                break
-            fi
-            echo "   Attempt $i/10: DNS not ready yet, waiting..."
-            sleep 2
-        done
-    fi
-
-    echo "✅ VPN connected and ready. Next: ./ee_setup.sh kube"
+    echo "✅ VPN connected"
+    [ "$(detect_type)" = "k8s" ] && echo "Next: ./ee_setup.sh kube" || echo "Next: ./ee_setup.sh ssh"
 }
 
 cmd_kube() {
-    check_workspace_active || exit 1
-    BOX_KUBECONFIG=$(grep "^BOX_KUBECONFIG=" "$ENV_FILE" | cut -d= -f2)
-    [ -z "$BOX_KUBECONFIG" ] && { echo "❌ No box configured for kubeconfig export. Add 'export_kubeconfig: true' to a box in ee_conf.yml"; exit 1; }
+    check_active
+    local box=$(grep "^BOX_KUBECONFIG=" "$ENV_FILE" 2>/dev/null | cut -d= -f2)
+    [ -z "$box" ] && { echo "❌ No kubeconfig box configured"; exit 1; }
 
-    echo "🔧 Exporting kubeconfig (WS=$WS, Box=$BOX_KUBECONFIG)..."
-    echo "🔑 Copying SSH key..."
-    ee box ssh-copy-id "$WS" "$BOX_KUBECONFIG"
+    echo "🔧 Exporting kubeconfig..."
+    ee box ssh-copy-id "$WS" "$box" &>/dev/null
+    local hostname=$(ee box hostname "$WS" "$box")
 
-    BOX_HOSTNAME=$(ee box hostname "$WS" "$BOX_KUBECONFIG")
-    ee box exec "$WS" "$BOX_KUBECONFIG" "kubectl config view --raw" | \
-        sed "s/127.0.0.1/$BOX_HOSTNAME/g" | \
+    ee box exec "$WS" "$box" "kubectl config view --raw" | \
+        sed "s/127.0.0.1/$hostname/g" | \
         sed '/certificate-authority-data:/d' | \
         sed '/server:/a\    insecure-skip-tls-verify: true' > kubeconfig.yaml
 
-    if ! grep -q "^KUBECONFIG=" "$ENV_FILE"; then
-        echo -e "\nKUBECONFIG=$SCRIPT_DIR/kubeconfig.yaml\nBOX_KUBECONFIG_HOSTNAME=$BOX_HOSTNAME" >> .env
-    fi
+    grep -q "^KUBECONFIG=" "$ENV_FILE" || echo -e "\nKUBECONFIG=$SCRIPT_DIR/kubeconfig.yaml" >> .env
 
     export KUBECONFIG="$SCRIPT_DIR/kubeconfig.yaml"
-    echo "✅ Kubeconfig exported: $SCRIPT_DIR/kubeconfig.yaml"
-    echo "Testing cluster..."; kubectl get nodes
-    echo -e "\n🎉 Ready! Run: source ./ee_setup.sh load_env"
+    echo "✅ Kubeconfig: $SCRIPT_DIR/kubeconfig.yaml"
+    kubectl get nodes
+}
+
+cmd_ssh() {
+    check_active
+    echo "🔑 Setting up SSH..."
+
+    # Copy SSH keys
+    grep "^BOX_" "$ENV_FILE" | grep -v "BOX_KUBECONFIG" | while read -r line; do
+        local id=$(echo "$line" | cut -d= -f2)
+        ee box ssh-copy-id "$WS" "$id" &>/dev/null
+    done
+
+    # Save hostnames with .meshnet.local
+    sed -i '/^HOSTNAME_/d' "$ENV_FILE"
+    grep "^BOX_" "$ENV_FILE" | grep -v "BOX_KUBECONFIG" | while read -r line; do
+        local name=$(echo "$line" | cut -d= -f1 | sed 's/BOX_//')
+        local id=$(echo "$line" | cut -d= -f2)
+        local hostname=$(ee box hostname "$WS" "$id")
+        [[ ! "$hostname" =~ \.meshnet\.local$ ]] && hostname="${hostname}.meshnet.local"
+        echo "HOSTNAME_$name=$hostname" >> "$ENV_FILE"
+    done
+
+    echo "✅ SSH configured"
+    echo "Next: ./ee_setup.sh inventory"
+}
+
+cmd_inventory() {
+    check_active
+    mkdir -p inventory
+
+    # Build simple inventory from workspace boxes
+    {
+        echo "[all]"
+
+        # Add all boxes to inventory
+        grep "^HOSTNAME_" "$ENV_FILE" | while read -r line; do
+            local name=$(echo "$line" | cut -d= -f1 | sed 's/HOSTNAME_//' | tr '[:upper:]' '[:lower:]' | tr '_' '-')
+            local host=$(echo "$line" | cut -d= -f2)
+            echo "$name ansible_host=$host"
+        done
+
+        echo
+        echo "[all:vars]"
+        echo "ansible_user=easyenv"
+        echo "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
+        echo "ansible_python_interpreter=/usr/bin/python3"
+    } > inventory/hosts.ini
+
+    echo "✅ Inventory: inventory/hosts.ini (edit to add custom groups)"
+    echo "Next: ./ee_setup.sh ansible"
+}
+
+cmd_ansible() {
+    check_active
+    command -v ansible &>/dev/null || pip install ansible
+    [ -f "inventory/hosts.ini" ] || { echo "❌ Run './ee_setup.sh inventory' first"; exit 1; }
+
+    echo "📡 Testing connectivity..."
+    if ansible all -i inventory/hosts.ini -m ping -o; then
+        echo "✅ All nodes reachable"
+        [ -f "playbooks/postgres-cluster.yml" ] && echo "Deploy: ansible-playbook -i inventory/hosts.ini playbooks/postgres-cluster.yml"
+    else
+        echo "❌ Connection failed"
+        exit 1
+    fi
 }
 
 cmd_cleanup() {
     load_env
-    echo "🧹 Cleaning workspace: $WS"
     ee stop ws "$WS" || true
-
     read -p "Delete workspace? (y/N): " -n 1 -r; echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    [[ $REPLY =~ ^[Yy]$ ]] && {
         ee delete ws "$WS"
-        rm -f "$SCRIPT_DIR/.env" "$SCRIPT_DIR/kubeconfig.yaml"
+        rm -f .env kubeconfig.yaml inventory/hosts.ini
         echo "✅ Deleted"
-    else
-        echo "✅ Stopped only"
-    fi
+    } || echo "✅ Stopped"
 }
 
 cmd_load_env() {
     if [ "$sourced" -eq 1 ]; then
-        load_env; display_env
-        echo "✅ Exported to shell!"
+        load_env
+        echo "✅ WS=$WS"
+        env | grep -E "^(BOX_|HOSTNAME_|KUBECONFIG)" | sort
     else
-        load_env; display_env
         echo "⚠️  Run: source ./ee_setup.sh load_env"
-        return 1 2>/dev/null || exit 1
+        exit 1
     fi
-}
-
-cmd_workspace() {
-    load_env
-    echo "📋 Workspace Details:"
-    ee describe ws "$WS"
 }
 
 cmd_status() {
     if [ -f "$ENV_FILE" ]; then
-        load_env; display_env
-        [ -f "kubeconfig.yaml" ] && echo "✅ Kubeconfig exists" || echo "❌ Kubeconfig missing"
+        load_env
+        echo "WS: $WS"
+        [ -f "kubeconfig.yaml" ] && echo "✅ Kubeconfig" || echo "❌ No kubeconfig"
+        [ -f "inventory/hosts.ini" ] && echo "✅ Inventory" || echo "❌ No inventory"
     else
-        echo "❌ Not initialized. Run './ee_setup.sh init'"
+        echo "❌ Not initialized"
     fi
 }
 
-case "${1:-}" in
-    init) cmd_init ;;
-    vpn) cmd_vpn ;;
-    kube) cmd_kube ;;
-    cleanup) cmd_cleanup ;;
-    load_env) cmd_load_env ;;
-    workspace) cmd_workspace ;;
-    status) cmd_status ;;
-    *)
-        echo "Usage: $0 {init|vpn|kube|cleanup|load_env|workspace|status}"
-        echo ""
-        echo "Commands:"
-        echo "  init       Create and start workspace"
-        echo "  vpn        Connect to workspace VPN"
-        echo "  kube       Export kubeconfig"
-        echo "  cleanup    Stop/delete workspace"
-        echo "  load_env   Load environment (use: source ./ee_setup.sh load_env)"
-        echo "  workspace  Show workspace details"
-        echo "  status     Show status"
-        echo ""
+cmd_help() {
+    local type=$(detect_type)
+    echo "Usage: ./ee_setup.sh COMMAND"
+    echo
+    echo "Common:"
+    echo "  init        Create workspace"
+    echo "  vpn         Connect VPN"
+    echo "  status      Show status"
+    echo "  workspace   Show detailed workspace info"
+    echo "  cleanup     Stop/delete workspace"
+    echo "  load_env    Load env vars (use: source ./ee_setup.sh load_env)"
+    echo
+
+    if [ "$type" = "k8s" ]; then
+        echo "Kubernetes:"
+        echo "  kube        Export kubeconfig"
+        echo
         echo "Workflow:"
-        echo "  ./ee_setup.sh init"
-        echo "  ./ee_setup.sh vpn"
-        echo "  ./ee_setup.sh kube"
-        echo "  source ./ee_setup.sh load_env"
-        exit 1
-        ;;
+        echo "  ./ee_setup.sh init && ./ee_setup.sh vpn && ./ee_setup.sh kube"
+    else
+        echo "Ansible:"
+        echo "  ssh         Setup SSH keys"
+        echo "  inventory   Generate inventory"
+        echo "  ansible     Test connectivity"
+        echo
+        echo "Kubernetes:"
+        echo "  kube        Export kubeconfig (if configured)"
+        echo
+        echo "Workflow:"
+        echo "  ./ee_setup.sh init && ./ee_setup.sh vpn && ./ee_setup.sh ssh && ./ee_setup.sh inventory"
+    fi
+}
+
+# ─────────────────────────────────────────────────────────────
+# Main
+# ─────────────────────────────────────────────────────────────
+
+case "${1:-}" in
+    init)      cmd_init ;;
+    vpn)       cmd_vpn ;;
+    kube)      cmd_kube ;;
+    ssh)       cmd_ssh ;;
+    inventory) cmd_inventory ;;
+    ansible)   cmd_ansible ;;
+    cleanup)   cmd_cleanup ;;
+    load_env)  cmd_load_env ;;
+    workspace) load_env && ee describe ws "$WS" ;;
+    status)    cmd_status ;;
+    *)         cmd_help; exit 1 ;;
 esac
