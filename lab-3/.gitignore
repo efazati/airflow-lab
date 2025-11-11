@@ -1,5 +1,3 @@
-# Environment files
-.env
-
-# Kubernetes config
-kubeconfig.yaml
+# EasyEnv workspace files
+ee/.env
+ee/kubeconfig.yaml

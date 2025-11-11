@@ -6,9 +6,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Source environment if available
-if [ -f .env ]; then
+if [ -f ee/.env ]; then
     set -a
-    source .env
+    source ee/.env
     set +a
 fi
 
@@ -39,7 +39,7 @@ log_error() {
 check_kubectl() {
     if ! kubectl cluster-info &>/dev/null; then
         log_error "kubectl is not configured or cluster is not accessible"
-        log_info "Run: source ./ee_setup.sh load_env"
+        log_info "Run: source ee/ee_setup.sh load_env"
         exit 1
     fi
 }
@@ -66,7 +66,7 @@ cmd_init() {
         log_success "Logs directory configured"
     else
         log_warning "WS or BOX_K3S not set, skipping logs directory setup"
-        log_info "Run: source ./ee_setup.sh load_env"
+        log_info "Run: source ee/ee_setup.sh load_env"
     fi
 
     # Deploy storage

@@ -12,9 +12,10 @@ Kubernetes-based Airflow 2.10.4 deployment using **Community Helm Chart** with K
 ## Quick Setup (Using Helper Script) ⚡
 
 ```bash
-# 1. Initialize workspace (if not already done)
-./ee_setup.sh init && ./ee_setup.sh vpn && ./ee_setup.sh kube
-source ./ee_setup.sh load_env
+# 1. Initialize workspace
+ee/setup.sh init && ee/setup.sh vpn
+ee/kube.sh setup
+source ee/setup.sh load_env
 
 # 2. Initialize Airflow prerequisites (repos, postgres, storage)
 ./airflow-helper.sh init
@@ -34,11 +35,14 @@ source ./ee_setup.sh load_env
 
 ```bash
 # 1. Initialize workspace
-./ee_setup.sh init && ./ee_setup.sh vpn && ./ee_setup.sh kube
+cd ee
+./ee_setup.sh init && ./ee_setup.sh vpn
+./ee_kube.sh setup
 source ./ee_setup.sh load_env
+cd ..
 
 # 2. Setup logs directory on K3s node (required for persistent logs)
-BOX_K3S=$(grep "^BOX_K3S=" .env | cut -d= -f2)
+BOX_K3S=$(grep "^BOX_K3S=" ee/.env | cut -d= -f2)
 ee box exec "$WS" "$BOX_K3S" "sudo mkdir -p /opt/airflow-logs && sudo chown -R 50000:0 /opt/airflow-logs && sudo chmod -R 775 /opt/airflow-logs"
 
 # 3. Deploy namespace and storage

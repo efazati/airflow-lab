@@ -1,0 +1,11 @@
+title: "Airflow Workspace"
+description: "A workspace for Airflow development"
+
+duration: 5
+duration_unit: "hours"
+
+boxes:
+  - title: "Kind"
+    description: "Kind"
+    recipe_title: "Kind"
+    export_kubeconfig: true
